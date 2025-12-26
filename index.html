@@ -125,7 +125,7 @@ button.energy {
 .stat { display: flex; align-items: center; gap: 4px; }
 .stat span { font-weight: bold; }
 
-#shop, #abilities {
+#shop, #abilities, #tower-actions {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -141,6 +141,7 @@ canvas {
   box-shadow: 0 6px 16px rgba(0,0,0,0.5);
   max-width: 100%;
   height: auto;
+  cursor: crosshair;
 }
 
 #instructions {
@@ -166,7 +167,7 @@ canvas {
   color: #cd7f32;
 }
 
-#username-modal {
+#username-modal, #tower-info-panel {
   position: fixed;
   top: 0;
   left: 0;
@@ -210,11 +211,65 @@ canvas {
   margin-top: 15px;
 }
 
+#tower-info-panel {
+  z-index: 2000;
+}
+
+.tower-info-content {
+  background: rgba(30, 41, 59, 0.95);
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 15px;
+  width: 280px;
+  max-width: 90%;
+  color: white;
+}
+
+.tower-info-content h3 {
+  margin: 0 0 10px 0;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tower-stats {
+  text-align: left;
+  margin: 10px 0;
+  font-size: 0.95rem;
+}
+
+.tower-stats div {
+  margin: 4px 0;
+}
+
+.tower-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 15px;
+}
+
+.tower-actions button {
+  flex: 1;
+  padding: 8px;
+  font-size: 13px;
+}
+
+.sell-mode canvas, .move-mode canvas {
+  cursor: pointer;
+}
+
+.dragging-tower {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
 @media (max-width: 600px) {
   h1 { font-size: 1.6rem; }
   button { padding: 8px 12px; font-size: 12px; }
   .stat { font-size: 0.8rem; }
   #ui { gap: 4px; }
+  .tower-info-content { width: 95%; }
 }
 </style>
 </head>
@@ -258,6 +313,12 @@ canvas {
   
   <!-- ABILITIES -->
   <div id="abilities" style="display:none;"></div>
+  
+  <!-- TOWER ACTIONS -->
+  <div id="tower-actions" style="display:none;">
+    <button id="btn-sell" onclick="toggleSellMode()">🗑️ Sell Tower</button>
+    <button id="btn-move" onclick="toggleMoveMode()">🔄 Move Tower</button>
+  </div>
 
   <canvas id="game" width="800" height="400"></canvas>
 
@@ -285,9 +346,23 @@ canvas {
   </div>
 </div>
 
+<!-- TOWER INFO PANEL -->
+<div id="tower-info-panel" style="display:none;">
+  <div class="tower-info-content">
+    <h3 id="tower-info-title">Basic Tower</h3>
+    <div class="tower-stats" id="tower-info-stats">
+      <!-- Filled by JS -->
+    </div>
+    <div class="tower-actions">
+      <button class="danger" onclick="sellCurrentTower()">🗑️ Sell for <span id="sell-amount">35</span>💰</button>
+      <button id="move-btn" onclick="startMovingTower()">🔄 Move</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ====== LEADERBOARD SYSTEM ======
-const LEADERBOARD_KEY = 'tower_defense_leaderboard_v2';
+const LEADERBOARD_KEY = 'tower_defense_leaderboard_v3';
 
 function loadLeaderboard() {
   const data = localStorage.getItem(LEADERBOARD_KEY);
@@ -303,7 +378,6 @@ function updateLeaderboard(name, score) {
   
   let leaderboard = loadLeaderboard();
   
-  // Update or add player
   const existing = leaderboard.find(p => p.name === name);
   if (existing) {
     existing.score = Math.max(existing.score, score);
@@ -316,7 +390,6 @@ function updateLeaderboard(name, score) {
     });
   }
   
-  // Sort & keep top 10
   leaderboard.sort((a, b) => b.score - a.score);
   leaderboard = leaderboard.slice(0, 10);
   
@@ -388,6 +461,18 @@ const bullets = [];
 const particles = [];
 const aoeEffects = [];
 
+// Mode tracking
+let sellMode = false;
+let moveMode = false;
+let draggingTower = null;
+let hoveredTower = null;
+
+// Tower costs
+const TOWER_COSTS = {
+  basic: 50, fast: 75, sniper: 120,
+  frozen: 150, flame: 130, lazer: 200, missile: 250
+};
+
 // ====== PATH ======
 const path = [
   { x: 0, y: 80 },
@@ -425,7 +510,7 @@ function distToSegment(px, py, x1, y1, x2, y2) {
   return Math.sqrt(dx * dx + dy * dy);
 }
 
-// ====== CLASSES (Condensed for space - same as previous) ======
+// ====== CLASSES (Enhanced for move/sell) ======
 class Particle {
   constructor(x, y, color = '#ffffff', size = 3, vx = 0, vy = 0, life = 30) {
     this.x = x;
@@ -772,7 +857,18 @@ class Tower {
   }
 
   draw() {
-    if (selectedTower === this.type) {
+    // Highlight if hovered or in sell/move mode
+    if ((hoveredTower === this && !sellMode && !moveMode) || 
+        (sellMode && hoveredTower === this) || 
+        (moveMode && hoveredTower === this)) {
+      ctx.strokeStyle = '#fbbf24';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, 18, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    if (selectedTower === this.type || (moveMode && draggingTower === this)) {
       ctx.strokeStyle = this.color + '30';
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -795,6 +891,32 @@ class Tower {
     ctx.textAlign = 'center';
     ctx.fillText(this.name[0], this.x, this.y + 4);
     ctx.textAlign = 'left';
+  }
+
+  getInfo() {
+    const cost = TOWER_COSTS[this.type];
+    const sellPrice = Math.floor(cost * 0.7);
+    let stats = '';
+    
+    if (this.type === 'basic' || this.type === 'fast' || this.type === 'sniper') {
+      stats = `Damage: ${this.damage}<br>Range: ${this.range}<br>Cooldown: ${this.cooldownMax/60}s`;
+    } else if (this.type === 'frozen') {
+      stats = `Damage: ${this.damage}<br>Slow: ${Math.round((1-this.slowMult)*100)}%<br>Range: ${this.range}`;
+    } else if (this.type === 'flame') {
+      stats = `DPS: ${this.dps}<br>Burn Duration: 2s<br>Range: ${this.range}`;
+    } else if (this.type === 'lazer') {
+      stats = `Damage: ${this.damage}<br>Pierce: ${this.pierce}<br>Range: ${this.range}`;
+    } else if (this.type === 'missile') {
+      stats = `Damage: ${this.damage}<br>Splash: ${this.splash}px<br>Range: ${this.range}`;
+    }
+    
+    return {
+      name: this.name,
+      type: this.type,
+      cost,
+      sellPrice,
+      stats
+    };
   }
 }
 
@@ -903,6 +1025,83 @@ class AoeEffect {
   }
 }
 
+// ====== TOWER MANAGEMENT ======
+function toggleSellMode() {
+  sellMode = !sellMode;
+  moveMode = false;
+  draggingTower = null;
+  updateTowerActionButtons();
+  canvas.style.cursor = sellMode ? 'pointer' : 'crosshair';
+}
+
+function toggleMoveMode() {
+  moveMode = !moveMode;
+  sellMode = false;
+  draggingTower = null;
+  updateTowerActionButtons();
+  canvas.style.cursor = moveMode ? 'grab' : 'crosshair';
+}
+
+function updateTowerActionButtons() {
+  const sellBtn = document.getElementById('btn-sell');
+  const moveBtn = document.getElementById('btn-move');
+  
+  if (sellBtn) sellBtn.classList.toggle('selected', sellMode);
+  if (moveBtn) moveBtn.classList.toggle('selected', moveMode);
+}
+
+function showTowerInfo(tower) {
+  const info = tower.getInfo();
+  document.getElementById('tower-info-title').textContent = info.name + ' Tower';
+  document.getElementById('tower-info-stats').innerHTML = info.stats;
+  document.getElementById('sell-amount').textContent = info.sellPrice;
+  
+  // Show move button only if not in move mode
+  const moveBtn = document.getElementById('move-btn');
+  if (moveBtn) {
+    moveBtn.style.display = moveMode ? 'none' : 'inline-block';
+  }
+  
+  document.getElementById('tower-info-panel').style.display = 'flex';
+  hoveredTower = tower;
+}
+
+function hideTowerInfo() {
+  document.getElementById('tower-info-panel').style.display = 'none';
+  hoveredTower = null;
+}
+
+function sellCurrentTower() {
+  if (!hoveredTower) return;
+  
+  const info = hoveredTower.getInfo();
+  money += info.sellPrice;
+  
+  // Remove tower
+  const index = towers.indexOf(hoveredTower);
+  if (index > -1) {
+    towers.splice(index, 1);
+  }
+  
+  hideTowerInfo();
+  updateUI();
+  showFeedback(`Tower sold for ${info.sellPrice}💰!`, "success");
+}
+
+function startMovingTower() {
+  if (!hoveredTower) return;
+  
+  draggingTower = hoveredTower;
+  moveMode = true;
+  sellMode = false;
+  updateTowerActionButtons();
+  hideTowerInfo();
+  canvas.style.cursor = 'grabbing';
+  
+  // Visual indicator
+  showFeedback("Drag tower to new location", "info");
+}
+
 // ====== UI & GAME CONTROL ======
 function initShop() {
   const shop = document.getElementById('shop');
@@ -929,8 +1128,19 @@ function initAbilities() {
   `;
 }
 
+function initTowerActions() {
+  document.getElementById('tower-actions').style.display = 'flex';
+  updateTowerActionButtons();
+}
+
 function selectTower(type, btn) {
   selectedTower = type;
+  sellMode = false;
+  moveMode = false;
+  draggingTower = null;
+  updateTowerActionButtons();
+  canvas.style.cursor = 'crosshair';
+  
   document.querySelectorAll("#shop button").forEach(b => b.classList.remove("selected"));
   btn.classList.add("selected");
 }
@@ -985,31 +1195,162 @@ function useMissile() {
   }
 }
 
-canvas.addEventListener("click", e => {
-  if (!selectedTower || !gameRunning) return;
-
+// ====== CANVAS INTERACTION ======
+canvas.addEventListener("mousemove", e => {
+  if (!gameRunning) return;
+  
   const rect = canvas.getBoundingClientRect();
   const x = (e.clientX - rect.left) * (canvas.width / rect.width) / dpr;
   const y = (e.clientY - rect.top) * (canvas.height / rect.height) / dpr;
-
-  const cost = { basic:50, fast:75, sniper:120, frozen:150, flame:130, lazer:200, missile:250 };
-  if (money < cost[selectedTower]) return;
-
-  if (x < 20 || x > width - 20 || y < 20 || y > height - 20 || isOnPath(x, y)) return;
-
-  for (const t of towers) {
-    if (Math.hypot(t.x - x, t.y - y) < 30) return;
+  
+  // Find hovered tower
+  let newHovered = null;
+  for (const tower of towers) {
+    const dist = Math.hypot(tower.x - x, tower.y - y);
+    if (dist <= 18) { // slightly larger than tower radius
+      newHovered = tower;
+      break;
+    }
   }
-
-  towers.push(new Tower(x, y, selectedTower));
-  money -= cost[selectedTower];
-  updateUI();
+  
+  if (newHovered !== hoveredTower) {
+    hoveredTower = newHovered;
+    if (hoveredTower && !sellMode && !moveMode && !draggingTower) {
+      showTowerInfo(hoveredTower);
+    } else if (!hoveredTower || sellMode || moveMode || draggingTower) {
+      hideTowerInfo();
+    }
+  }
+  
+  // Update dragging tower position
+  if (draggingTower) {
+    draggingTower.x = x;
+    draggingTower.y = y;
+  }
 });
 
+canvas.addEventListener("click", e => {
+  if (!gameRunning) return;
+  
+  const rect = canvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left) * (canvas.width / rect.width) / dpr;
+  const y = (e.clientY - rect.top) * (canvas.height / rect.height) / dpr;
+  
+  // Sell mode: click tower to sell
+  if (sellMode) {
+    for (let i = towers.length - 1; i >= 0; i--) {
+      const tower = towers[i];
+      const dist = Math.hypot(tower.x - x, tower.y - y);
+      if (dist <= 18) {
+        const info = tower.getInfo();
+        money += info.sellPrice;
+        towers.splice(i, 1);
+        updateUI();
+        showFeedback(`Tower sold for ${info.sellPrice}💰!`, "success");
+        break;
+      }
+    }
+    return;
+  }
+  
+  // Move mode: click tower to start moving
+  if (moveMode && !draggingTower) {
+    for (const tower of towers) {
+      const dist = Math.hypot(tower.x - x, tower.y - y);
+      if (dist <= 18) {
+        draggingTower = tower;
+        canvas.style.cursor = 'grabbing';
+        showFeedback("Drag to new location, click to place", "info");
+        return;
+      }
+    }
+    return;
+  }
+  
+  // Placing tower (normal mode)
+  if (selectedTower && !sellMode && !moveMode && !draggingTower) {
+    const cost = TOWER_COSTS[selectedTower];
+    if (money < cost) {
+      showFeedback("Not enough money!", "error");
+      return;
+    }
+
+    if (x < 20 || x > width - 20 || y < 20 || y > height - 20 || isOnPath(x, y)) {
+      showFeedback("Can't build on path!", "error");
+      return;
+    }
+
+    // Prevent overlap
+    for (const t of towers) {
+      if (Math.hypot(t.x - x, t.y - y) < 30) {
+        showFeedback("Too close to another tower!", "error");
+        return;
+      }
+    }
+
+    towers.push(new Tower(x, y, selectedTower));
+    money -= cost;
+    updateUI();
+    showFeedback(`${selectedTower} tower placed!`, "success");
+    return;
+  }
+  
+  // Placing moved tower
+  if (draggingTower) {
+    if (x < 20 || x > width - 20 || y < 20 || y > height - 20 || isOnPath(x, y)) {
+      showFeedback("Can't place on path!", "error");
+      return;
+    }
+
+    // Prevent overlap (except with itself)
+    let overlap = false;
+    for (const t of towers) {
+      if (t === draggingTower) continue;
+      if (Math.hypot(t.x - x, t.y - y) < 30) {
+        overlap = true;
+        break;
+      }
+    }
+    if (overlap) {
+      showFeedback("Too close to another tower!", "error");
+      return;
+    }
+
+    // Finalize position
+    draggingTower.x = x;
+    draggingTower.y = y;
+    draggingTower = null;
+    moveMode = false;
+    canvas.style.cursor = 'crosshair';
+    updateTowerActionButtons();
+    showFeedback("Tower moved!", "success");
+  }
+});
+
+// Handle mouse up to drop tower
+canvas.addEventListener("mouseup", () => {
+  if (draggingTower && moveMode) {
+    // We'll handle placement on click, not mouseup
+  }
+});
+
+// Cancel move on Esc
 document.addEventListener('keydown', e => {
   if (!gameRunning) return;
+  
+  if (e.key === 'Escape') {
+    draggingTower = null;
+    moveMode = false;
+    sellMode = false;
+    updateTowerActionButtons();
+    canvas.style.cursor = 'crosshair';
+    hideTowerInfo();
+  }
+  
   if (e.key === 'e' || e.key === 'E') useFreeze();
   if (e.key === 'r' || e.key === 'R') useMissile();
+  if (e.key === 's' || e.key === 'S') toggleSellMode();
+  if (e.key === 'm' || e.key === 'M') toggleMoveMode();
 });
 
 function randomEnemyType(wave) {
@@ -1135,7 +1476,18 @@ function gameLoop() {
     enemies[i].draw();
   }
 
-  towers.forEach(t => { t.update(); t.draw(); });
+  // Draw towers (dragging tower last for visual priority)
+  for (const tower of towers) {
+    if (tower !== draggingTower) {
+      tower.draw();
+    }
+  }
+  if (draggingTower) {
+    ctx.globalAlpha = 0.7;
+    draggingTower.draw();
+    ctx.globalAlpha = 1;
+  }
+
   for (let i = bullets.length - 1; i >= 0; i--) {
     if (bullets[i].update()) bullets.splice(i, 1);
     else bullets[i].draw();
@@ -1172,6 +1524,7 @@ function gameLoop() {
     document.getElementById("ui").style.display = "none";
     document.getElementById("shop").style.display = "none";
     document.getElementById("abilities").style.display = "none";
+    document.getElementById("tower-actions").style.display = "none";
     document.getElementById("game-over").style.display = "block";
     
     ctx.fillStyle = "#f87171";
@@ -1205,8 +1558,10 @@ function startGame(difficulty) {
   wave = 1; score = 0; energy = 0;
   freezeCooldown = 0; missileCooldown = 0;
   selectedTower = null;
+  sellMode = false;
+  moveMode = false;
+  draggingTower = null;
 
-  // Load personal best
   const leaderboard = loadLeaderboard();
   const playerData = leaderboard.find(p => p.name === currentPlayer);
   personalBest = playerData ? playerData.score : 0;
@@ -1218,6 +1573,7 @@ function startGame(difficulty) {
   canvas.style.display = "block";
   initShop();
   initAbilities();
+  initTowerActions();
   document.getElementById("shop").style.display = "flex";
   document.getElementById("abilities").style.display = "flex";
 
@@ -1228,7 +1584,6 @@ function startGame(difficulty) {
 }
 
 function restartGame() {
-  // Return to difficulty select
   document.getElementById("game-over").style.display = "none";
   document.getElementById("menu").style.display = "flex";
 }
@@ -1256,14 +1611,11 @@ function submitUsername() {
   }
 }
 
-// Close modal on Escape
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    hideUsernameModal();
-  }
+// Initialize on load
+window.addEventListener('load', () => {
+  resizeCanvas();
+  renderLeaderboard();
 });
-
-// Initialize leaderboard on load (already done in load event)
 </script>
 </body>
 </html>
