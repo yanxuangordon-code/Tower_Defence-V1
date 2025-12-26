@@ -14,6 +14,7 @@
   --success: #4ade80;
   --warning: #fbbf24;
   --energy: #8b5cf6;
+  --editor: #e2e8f0;
 }
 
 * {
@@ -31,7 +32,7 @@ body {
 }
 
 h1 {
-  margin: 10px 0 15px;
+  margin: 10px 0 5px;
   font-weight: 800;
   font-size: 2rem;
   text-shadow: 0 2px 4px rgba(0,0,0,0.3);
@@ -41,19 +42,27 @@ h1 {
   color: transparent;
 }
 
+#editor-credit {
+  font-size: 0.9rem;
+  color: var(--editor);
+  margin-bottom: 15px;
+  font-style: italic;
+}
+
 #container {
   max-width: 900px;
   margin: 0 auto;
 }
 
-#menu, #game-over {
+#menu, #game-over, #leaderboard {
   padding: 20px;
   background: var(--card);
   border-radius: 12px;
   box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+  margin-bottom: 15px;
 }
 
-#menu h2, #game-over h2 {
+#menu h2, #game-over h2, #leaderboard h2 {
   margin-top: 0;
   font-size: 1.8rem;
   color: var(--accent);
@@ -140,6 +149,67 @@ canvas {
   color: #94a3b8;
 }
 
+.leaderboard-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #334155;
+}
+.leaderboard-item:first-child {
+  font-weight: bold;
+  color: gold;
+}
+.leaderboard-item:nth-child(2) {
+  color: silver;
+}
+.leaderboard-item:nth-child(3) {
+  color: #cd7f32;
+}
+
+#username-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: var(--card);
+  padding: 25px;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+.modal-content h3 {
+  margin-top: 0;
+  color: var(--accent);
+}
+
+.modal-content input {
+  width: 100%;
+  padding: 12px;
+  margin: 10px 0;
+  border-radius: 8px;
+  border: 1px solid #475569;
+  background: #0f172a;
+  color: white;
+  font-size: 16px;
+}
+
+.modal-content .btn-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
 @media (max-width: 600px) {
   h1 { font-size: 1.6rem; }
   button { padding: 8px 12px; font-size: 12px; }
@@ -151,9 +221,21 @@ canvas {
 <body>
 <div id="container">
   <h1>🏰 Tower Defense – Ultimate Defense!</h1>
+  <div id="editor-credit">Edited by Gordon</div>
+
+  <!-- LEADERBOARD -->
+  <div id="leaderboard">
+    <h2>🏆 Top 10 Players</h2>
+    <div id="leaderboard-list">
+      <div class="leaderboard-item">
+        <span>Loading...</span>
+      </div>
+    </div>
+    <button onclick="showUsernameModal()" style="margin-top:15px;">▶️ Start Game</button>
+  </div>
 
   <!-- MENU -->
-  <div id="menu">
+  <div id="menu" style="display:none;">
     <h2>Select Difficulty</h2>
     <button onclick="startGame('easy')">😀 Easy</button>
     <button onclick="startGame('normal')">🙂 Normal</button>
@@ -163,6 +245,7 @@ canvas {
 
   <!-- UI -->
   <div id="ui" style="display:none;">
+    <div class="stat">🎮 <span id="player-name">Gordon</span></div>
     <div class="stat">❤️ <span id="health">10</span></div>
     <div class="stat">💰 <span id="money">100</span></div>
     <div class="stat">⚡ <span id="energy">0</span>/100</div>
@@ -183,16 +266,86 @@ canvas {
     <h2>💀 Game Over!</h2>
     <p>Final Score: <strong id="final-score">0</strong></p>
     <p>Survived <strong id="final-wave">0</strong> waves.</p>
+    <p>Your Personal Best: <strong id="personal-best">0</strong></p>
     <button onclick="restartGame()">🔁 Play Again</button>
+    <button onclick="showUsernameModal()">🆕 New Player</button>
+  </div>
+</div>
+
+<!-- USERNAME MODAL -->
+<div id="username-modal" style="display:none;">
+  <div class="modal-content">
+    <h3>🌟 Welcome to Tower Defense!</h3>
+    <p>Enter your name to track your high scores:</p>
+    <input type="text" id="username-input" placeholder="Your name (e.g., Gordon)" maxlength="15">
+    <div class="btn-row">
+      <button onclick="submitUsername()" style="flex:1;">✅ Start Game</button>
+      <button onclick="hideUsernameModal()" class="danger" style="flex:1;">❌ Cancel</button>
+    </div>
   </div>
 </div>
 
 <script>
-// ====== CANVAS SETUP (FIXED FOR Hi-DPI) ======
+// ====== LEADERBOARD SYSTEM ======
+const LEADERBOARD_KEY = 'tower_defense_leaderboard_v2';
+
+function loadLeaderboard() {
+  const data = localStorage.getItem(LEADERBOARD_KEY);
+  return data ? JSON.parse(data) : [];
+}
+
+function saveLeaderboard(leaderboard) {
+  localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(leaderboard));
+}
+
+function updateLeaderboard(name, score) {
+  if (!name || score <= 0) return;
+  
+  let leaderboard = loadLeaderboard();
+  
+  // Update or add player
+  const existing = leaderboard.find(p => p.name === name);
+  if (existing) {
+    existing.score = Math.max(existing.score, score);
+    existing.date = new Date().toISOString().split('T')[0];
+  } else {
+    leaderboard.push({
+      name: name,
+      score: score,
+      date: new Date().toISOString().split('T')[0]
+    });
+  }
+  
+  // Sort & keep top 10
+  leaderboard.sort((a, b) => b.score - a.score);
+  leaderboard = leaderboard.slice(0, 10);
+  
+  saveLeaderboard(leaderboard);
+  renderLeaderboard();
+  return leaderboard.find(p => p.name === name)?.score || score;
+}
+
+function renderLeaderboard() {
+  const list = document.getElementById('leaderboard-list');
+  const leaderboard = loadLeaderboard();
+  
+  if (leaderboard.length === 0) {
+    list.innerHTML = '<div class="leaderboard-item"><span>No scores yet. Be the first!</span></div>';
+    return;
+  }
+  
+  list.innerHTML = leaderboard.map((player, i) => `
+    <div class="leaderboard-item">
+      <span>${i+1}. <strong>${player.name}</strong></span>
+      <span>${player.score.toLocaleString()} • ${player.date}</span>
+    </div>
+  `).join('');
+}
+
+// ====== CANVAS SETUP ======
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-// Critical: Handle device pixel ratio
 let dpr = window.devicePixelRatio || 1;
 let width = 800;
 let height = 400;
@@ -201,26 +354,24 @@ function resizeCanvas() {
   const container = canvas.parentElement;
   const maxWidth = Math.min(container.clientWidth, 850);
   width = maxWidth;
-  height = Math.round(width * 0.5); // 2:1 aspect ratio
+  height = Math.round(width * 0.5);
 
-  // Set actual pixel buffer size (for sharp rendering)
   canvas.width = width * dpr;
   canvas.height = height * dpr;
-
-  // Set CSS display size
   canvas.style.width = width + 'px';
   canvas.style.height = height + 'px';
-
-  // Scale drawing context
   ctx.scale(dpr, dpr);
 }
 
-// Run on load and resize
-window.addEventListener('load', resizeCanvas);
+window.addEventListener('load', () => {
+  resizeCanvas();
+  renderLeaderboard();
+});
 window.addEventListener('resize', resizeCanvas);
-resizeCanvas(); // Initial setup
 
 // ====== GAME STATE ======
+let currentPlayer = "Gordon";
+let personalBest = 0;
 let health = 10, money = 100, wave = 1, score = 0, energy = 0;
 let selectedTower = null;
 let enemiesToSpawn = 0;
@@ -229,27 +380,24 @@ let gameRunning = false;
 let freezeCooldown = 0;
 let missileCooldown = 0;
 
-// Difficulty modifiers
 let hpMult = 1, speedMult = 1, spawnRateMult = 1;
 
-// Collections
 const enemies = [];
 const towers = [];
 const bullets = [];
 const particles = [];
 const aoeEffects = [];
 
-// ====== PATH (DYNAMIC, USES `width`) ======
+// ====== PATH ======
 const path = [
   { x: 0, y: 80 },
   { x: Math.min(250, width * 0.3), y: 80 },
   { x: Math.min(250, width * 0.3), y: Math.min(300, height * 0.75) },
   { x: Math.min(550, width * 0.7), y: Math.min(300, height * 0.75) },
   { x: Math.min(550, width * 0.7), y: Math.min(150, height * 0.4) },
-  { x: width, y: Math.min(150, height * 0.4) } // ← DYNAMIC ENDPOINT!
+  { x: width, y: Math.min(150, height * 0.4) }
 ];
 
-// Path collision helper
 function isOnPath(x, y) {
   const pathWidth = 40;
   for (let i = 0; i < path.length - 1; i++) {
@@ -277,7 +425,7 @@ function distToSegment(px, py, x1, y1, x2, y2) {
   return Math.sqrt(dx * dx + dy * dy);
 }
 
-// ====== CLASSES ======
+// ====== CLASSES (Condensed for space - same as previous) ======
 class Particle {
   constructor(x, y, color = '#ffffff', size = 3, vx = 0, vy = 0, life = 30) {
     this.x = x;
@@ -907,6 +1055,7 @@ function drawFeedback() {
 }
 
 function updateUI() {
+  document.getElementById("player-name").textContent = currentPlayer;
   document.getElementById("health").textContent = Math.max(0, health);
   document.getElementById("money").textContent = money;
   document.getElementById("energy").textContent = Math.floor(energy);
@@ -934,7 +1083,6 @@ function gameLoop() {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, width, height);
 
-  // Draw path (FIXED: uses dynamic coordinates)
   ctx.strokeStyle = "#334155";
   ctx.lineWidth = 40;
   ctx.lineCap = "round";
@@ -946,7 +1094,6 @@ function gameLoop() {
   }
   ctx.stroke();
 
-  // Draw path arrows
   ctx.fillStyle = "#64748b";
   ctx.font = "16px Arial";
   for (let i = 0; i < path.length - 1; i++) {
@@ -961,7 +1108,6 @@ function gameLoop() {
     }
   }
 
-  // Spawn enemies
   if (enemiesToSpawn > 0 && spawnCooldown <= 0) {
     const type = wave % 5 === 0 ? "boss" : randomEnemyType(wave);
     enemies.push(new Enemy(type, wave));
@@ -970,7 +1116,6 @@ function gameLoop() {
   }
   if (spawnCooldown > 0) spawnCooldown--;
 
-  // Update enemies
   for (let i = enemies.length - 1; i >= 0; i--) {
     if (enemies[i].update()) {
       enemies.splice(i, 1);
@@ -990,7 +1135,6 @@ function gameLoop() {
     enemies[i].draw();
   }
 
-  // Towers, bullets, particles, AoE
   towers.forEach(t => { t.update(); t.draw(); });
   for (let i = bullets.length - 1; i >= 0; i--) {
     if (bullets[i].update()) bullets.splice(i, 1);
@@ -1005,11 +1149,9 @@ function gameLoop() {
     else aoeEffects[i].draw();
   }
 
-  // Cooldowns
   if (freezeCooldown > 0) freezeCooldown--;
   if (missileCooldown > 0) missileCooldown--;
 
-  // Next wave
   if (enemies.length === 0 && enemiesToSpawn === 0) {
     wave++;
     startWave();
@@ -1018,22 +1160,27 @@ function gameLoop() {
 
   drawFeedback();
 
-  // Game over
   if (health <= 0) {
     gameRunning = false;
-    document.getElementById("final-score").textContent = score;
+    const newBest = updateLeaderboard(currentPlayer, score);
+    personalBest = Math.max(personalBest, score);
+    
+    document.getElementById("final-score").textContent = score.toLocaleString();
     document.getElementById("final-wave").textContent = wave - 1;
+    document.getElementById("personal-best").textContent = personalBest.toLocaleString();
+    
     document.getElementById("ui").style.display = "none";
     document.getElementById("shop").style.display = "none";
     document.getElementById("abilities").style.display = "none";
     document.getElementById("game-over").style.display = "block";
+    
     ctx.fillStyle = "#f87171";
     ctx.font = "bold 48px Arial";
     ctx.textAlign = "center";
     ctx.fillText("GAME OVER", width/2, height/2 - 20);
     ctx.font = "24px Arial";
     ctx.fillStyle = "#f1f5f9";
-    ctx.fillText(`Final Score: ${score}`, width/2, height/2 + 20);
+    ctx.fillText(`Final Score: ${score.toLocaleString()}`, width/2, height/2 + 20);
     return;
   }
 
@@ -1041,6 +1188,9 @@ function gameLoop() {
 }
 
 function startGame(difficulty) {
+  currentPlayer = document.getElementById('username-input').value.trim() || 'Player';
+  document.getElementById('username-modal').style.display = 'none';
+  
   health = difficulty === "easy" ? 25 : difficulty === "normal" ? 20 : 15;
   money = difficulty === "easy" ? 250 : difficulty === "normal" ? 200 : 150;
   hpMult = difficulty === "easy" ? 0.6 : difficulty === "normal" ? 1 : 1.5;
@@ -1056,6 +1206,12 @@ function startGame(difficulty) {
   freezeCooldown = 0; missileCooldown = 0;
   selectedTower = null;
 
+  // Load personal best
+  const leaderboard = loadLeaderboard();
+  const playerData = leaderboard.find(p => p.name === currentPlayer);
+  personalBest = playerData ? playerData.score : 0;
+
+  document.getElementById("leaderboard").style.display = "none";
   document.getElementById("menu").style.display = "none";
   document.getElementById("ui").style.display = "flex";
   document.getElementById("game-over").style.display = "none";
@@ -1072,14 +1228,42 @@ function startGame(difficulty) {
 }
 
 function restartGame() {
-  startGame('normal');
+  // Return to difficulty select
+  document.getElementById("game-over").style.display = "none";
+  document.getElementById("menu").style.display = "flex";
 }
 
-// Initialize shop on load
-window.addEventListener('load', () => {
-  initShop();
-  initAbilities();
+// ====== USERNAME MODAL ======
+function showUsernameModal() {
+  document.getElementById('username-input').value = currentPlayer || '';
+  document.getElementById('username-modal').style.display = 'flex';
+  document.getElementById('username-input').focus();
+}
+
+function hideUsernameModal() {
+  document.getElementById('username-modal').style.display = 'none';
+}
+
+function submitUsername() {
+  const name = document.getElementById('username-input').value.trim();
+  if (name) {
+    currentPlayer = name;
+    document.getElementById('menu').style.display = 'block';
+    document.getElementById('leaderboard').style.display = 'none';
+    hideUsernameModal();
+  } else {
+    alert('Please enter a name!');
+  }
+}
+
+// Close modal on Escape
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    hideUsernameModal();
+  }
 });
+
+// Initialize leaderboard on load (already done in load event)
 </script>
 </body>
 </html>
