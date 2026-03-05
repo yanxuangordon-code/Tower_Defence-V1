@@ -4,6 +4,63 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TOWER DEFENSE — ULTIMATE</title>
+
+<!-- ===== GORDON'S GATE STYLE ===== -->
+<style>
+  #gg-gate {
+    position: fixed; inset: 0;
+    background: #000;
+    z-index: 999999;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+  }
+  #gg-gate::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,224,255,0.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,224,255,0.07) 1px, transparent 1px);
+    background-size: 40px 40px;
+    animation: gg-grid 4s linear infinite;
+  }
+  @keyframes gg-grid { 0% { background-position: 0 0; } 100% { background-position: 40px 40px; } }
+  #gg-gate::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.15) 2px, rgba(0,0,0,0.15) 4px);
+    pointer-events: none; z-index: 1;
+  }
+  .gg-content { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 18px; width: 100%; max-width: 500px; padding: 20px; }
+  .gg-skull { font-size: 2.8em; animation: gg-pulse 2s ease-in-out infinite; filter: drop-shadow(0 0 15px #00e0ff); }
+  @keyframes gg-pulse { 0%,100% { transform: scale(1); filter: drop-shadow(0 0 10px #00e0ff); } 50% { transform: scale(1.08); filter: drop-shadow(0 0 25px #00ffff); } }
+  .gg-title { font-size: 1.8em; color: #00e0ff; letter-spacing: 7px; text-align: center; text-shadow: 0 0 20px #00e0ff, 0 0 40px #00a0ff; animation: gg-flicker 4s infinite alternate; }
+  @keyframes gg-flicker { 0%,90%,100% { opacity: 1; } 92% { opacity: 0.4; } 97% { opacity: 0.3; } }
+  .gg-subtitle { color: rgba(0,224,255,0.45); font-size: 0.7em; letter-spacing: 4px; text-align: center; }
+  .gg-box { width: 100%; background: rgba(0,20,40,0.92); border: 1px solid rgba(0,224,255,0.3); border-radius: 8px; padding: 22px; box-shadow: 0 0 30px rgba(0,224,255,0.12), inset 0 0 20px rgba(0,0,0,0.5); }
+  .gg-line { color: rgba(0,224,255,0.55); font-size: 0.72em; margin-bottom: 5px; letter-spacing: 2px; }
+  .gg-line.bright { color: #00e0ff; }
+  .gg-row { display: flex; align-items: center; gap: 10px; margin-top: 13px; border-top: 1px solid rgba(0,224,255,0.15); padding-top: 13px; }
+  .gg-prompt { color: #00e0ff; font-size: 0.95em; white-space: nowrap; text-shadow: 0 0 8px #00e0ff; }
+  #gg-input { background: transparent; border: none; outline: none; color: #00ffff; font-family: 'Courier New', monospace; font-size: 0.95em; flex: 1; letter-spacing: 4px; text-shadow: 0 0 8px #00ffff; caret-color: #00e0ff; }
+  #gg-input::placeholder { color: rgba(0,224,255,0.2); letter-spacing: 2px; font-size: 0.85em; }
+  #gg-btn { background: transparent; border: 1px solid rgba(0,224,255,0.5); color: #00e0ff; font-family: 'Courier New', monospace; font-size: 0.72em; letter-spacing: 2px; padding: 6px 13px; border-radius: 3px; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+  #gg-btn:hover { background: rgba(0,224,255,0.15); box-shadow: 0 0 12px rgba(0,224,255,0.4); }
+  #gg-denied { color: #ff2244; font-size: 0.82em; letter-spacing: 4px; text-align: center; text-shadow: 0 0 10px #ff2244; height: 20px; opacity: 0; transition: opacity 0.2s; }
+  #gg-denied.show { opacity: 1; }
+  #gg-granted { color: #00ff88; font-size: 1em; letter-spacing: 5px; text-align: center; text-shadow: 0 0 20px #00ff88; opacity: 0; transition: opacity 0.3s; height: 28px; }
+  #gg-granted.show { opacity: 1; }
+  .gg-hint { color: rgba(0,224,255,0.22); font-size: 0.62em; letter-spacing: 3px; text-align: center; }
+  .gg-shake { animation: gg-shk 0.4s cubic-bezier(.36,.07,.19,.97) both !important; }
+  @keyframes gg-shk { 10%,90% { transform: translateX(-4px); } 20%,80% { transform: translateX(6px); } 30%,50%,70% { transform: translateX(-6px); } 40%,60% { transform: translateX(6px); } }
+  .gg-glitch { animation: gg-gl 0.4s steps(1) both !important; }
+  @keyframes gg-gl { 0% { filter: none; } 20% { filter: hue-rotate(90deg) brightness(2); clip-path: inset(10% 0 80% 0); } 40% { filter: hue-rotate(180deg) brightness(0.5); clip-path: inset(60% 0 10% 0); } 60% { filter: hue-rotate(270deg) brightness(2); clip-path: inset(30% 0 50% 0); } 80% { filter: hue-rotate(360deg); clip-path: none; } 100% { filter: none; clip-path: none; } }
+  .gg-unlock { animation: gg-ul 1s ease forwards !important; }
+  @keyframes gg-ul { 0% { opacity: 1; filter: none; } 30% { filter: brightness(3) saturate(2); } 60% { filter: brightness(5) hue-rotate(90deg); transform: scale(1.02); } 100% { opacity: 0; transform: scale(1.05); filter: brightness(10); } }
+</style>
+<!-- ===== END GORDON'S GATE STYLE ===== -->
+
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;600;700&family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
 :root{
@@ -149,6 +206,30 @@ canvas{border-radius:8px;border:1px solid var(--border);display:block;margin:0 a
 </style>
 </head>
 <body>
+
+<!-- ===== GORDON'S GATE ===== -->
+<div id="gg-gate">
+  <div class="gg-content">
+    <div class="gg-skull">💀</div>
+    <div class="gg-title">ACCESS RESTRICTED</div>
+    <div class="gg-subtitle">[ GORDON'S MAINFRAME v2.0 ]</div>
+    <div class="gg-box" id="gg-box">
+      <div class="gg-line">SYSTEM: INITIALISING SECURITY PROTOCOL...</div>
+      <div class="gg-line bright">STATUS: AUTHENTICATION REQUIRED</div>
+      <div class="gg-line">CLEARANCE LEVEL: CLASSIFIED</div>
+      <div class="gg-row">
+        <span class="gg-prompt">ROOT@GORDON:~$</span>
+        <input type="password" id="gg-input" autocomplete="off" spellcheck="false" placeholder="ENTER ACCESS CODE" maxlength="20" />
+        <button id="gg-btn">ENTER ↵</button>
+      </div>
+    </div>
+    <div id="gg-denied">⛔ ACCESS DENIED — INVALID CODE</div>
+    <div id="gg-granted">✅ ACCESS GRANTED — WELCOME BACK</div>
+    <div class="gg-hint">hint: you know the code</div>
+  </div>
+</div>
+<!-- ===== END GORDON'S GATE ===== -->
+
 <canvas id="bg-canvas"></canvas>
 
 <!-- ═══ MENU ═══ -->
@@ -707,7 +788,6 @@ function startWave(){
 let mouseX=-999, mouseY=-999;
 let isDragging=false;
 
-// Floating ghost div that follows the cursor during drag
 const ghost=document.createElement('div');
 ghost.style.cssText='position:fixed;pointer-events:none;z-index:9999;display:none;width:34px;height:34px;border-radius:50%;border:2px solid #fff;align-items:center;justify-content:center;font-size:15px;transform:translate(-50%,-50%);box-shadow:0 0 12px rgba(0,0,0,.5);';
 document.body.appendChild(ghost);
@@ -775,18 +855,13 @@ function drawPlacementPreview(){
     &&mouseY>=18&&mouseY<=H-18
     &&!towers.some(t=>Math.hypot(t.x-mouseX,t.y-mouseY)<26);
 
-  // Shaded range fill
   ctx.fillStyle=canPlace?col+'0c':'rgba(255,59,92,.05)';
   ctx.beginPath();ctx.arc(mouseX,mouseY,range,0,Math.PI*2);ctx.fill();
-
-  // Range ring
   ctx.strokeStyle=canPlace?col+'70':'rgba(255,59,92,.6)';
   ctx.lineWidth=1.5;
   if(!canPlace)ctx.setLineDash([5,4]);
   ctx.beginPath();ctx.arc(mouseX,mouseY,range,0,Math.PI*2);ctx.stroke();
   ctx.setLineDash([]);
-
-  // Ghost tower
   ctx.globalAlpha=canPlace?.85:.45;
   ctx.fillStyle='#0a1628';ctx.beginPath();ctx.arc(mouseX,mouseY,15,0,Math.PI*2);ctx.fill();
   ctx.strokeStyle=canPlace?col:'rgba(255,59,92,.8)';ctx.lineWidth=1.5;ctx.stroke();
@@ -794,8 +869,6 @@ function drawPlacementPreview(){
   ctx.fillStyle='#fff';ctx.font='bold 7px Orbitron,monospace';ctx.textAlign='center';
   ctx.fillText(def.name[0],mouseX,mouseY+3);ctx.textAlign='left';
   ctx.globalAlpha=1;
-
-  // Label above ghost
   ctx.font='bold 12px "Rajdhani",sans-serif';
   const why=canPlace?'':(onPath(mouseX,mouseY)?'On path':money<def.cost?`Need 💰${def.cost}`:'No space');
   const label=canPlace?`${def.name}  💰${def.cost}`:why;
@@ -821,16 +894,13 @@ function gameLoop(){
   ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
   ctx.drawImage(pCache,0,0,W,H);
 
-  // Always draw towers (even during wave transition)
   for(const t of towers){
-    if(!waveTransition)t.up(); // only fire during active wave
+    if(!waveTransition)t.up();
     t.draw();
   }
 
-  // Always draw bullets
   for(let i=bullets.length-1;i>=0;i--){if(bullets[i].up())bullets.splice(i,1);else bullets[i].draw();}
 
-  // Always draw particles & AoE
   if(particles.length>MAXP)particles.splice(0,particles.length-MAXP);
   for(let i=particles.length-1;i>=0;i--){if(particles[i].up())particles.splice(i,1);else particles[i].dr();}
   for(let i=aoes.length-1;i>=0;i--){
@@ -841,12 +911,9 @@ function gameLoop(){
     ctx.beginPath();ctx.arc(a.x,a.y,a.r*(1.5-.5*al),0,Math.PI*2);ctx.fill();
   }
 
-  // Wave transition — show countdown overlay but keep towers visible
   if(waveTransition){
     waveGap--;
     if(waveGap<=0){waveTransition=false;wave++;startWave();}
-
-    // Semi-transparent overlay with countdown
     const secs=Math.ceil(waveGap/60)+1;
     ctx.fillStyle='rgba(4,10,18,.55)';ctx.fillRect(0,H/2-36,W,72);
     ctx.fillStyle='rgba(0,200,255,.8)';ctx.font=`bold 22px Orbitron,monospace`;ctx.textAlign='center';
@@ -854,16 +921,12 @@ function gameLoop(){
     ctx.fillStyle='rgba(0,200,255,.4)';ctx.font=`13px "Rajdhani",sans-serif`;
     ctx.fillText('Place towers now!',W/2,H/2+16);
     ctx.textAlign='left';
-
     drawPlacementPreview();
     drawToasts();
     requestAnimationFrame(gameLoop);
     return;
   }
 
-  // ── Active wave ──
-
-  // Spawn
   if(enemiesToSpawn>0&&spawnCD<=0){
     let type;
     const isMega=wave%15===0&&enemiesToSpawn<=1,isBoss=wave%5===0&&!isMega&&enemiesToSpawn<=(2+Math.floor(wave/15))&&Math.random()<.7;
@@ -872,7 +935,6 @@ function gameLoop(){
   }
   if(spawnCD>0)spawnCD--;
 
-  // Enemies
   for(let i=enemies.length-1;i>=0;i--){
     const e=enemies[i];
     if(e.up()){enemies.splice(i,1);}
@@ -887,18 +949,15 @@ function gameLoop(){
 
   if(frzCD>0)frzCD--;if(msCD>0)msCD--;if(nukeCD>0)nukeCD--;
 
-  // No-leak tracking
   if(sessionNoLeak&&health<sessionStartHp)sessionNoLeak=false;
 
-  // Wave complete?
   if(enemies.length===0&&enemiesToSpawn===0&&!waveTransition){
-    waveTransition=true;waveGap=180; // 3 second gap
+    waveTransition=true;waveGap=180;
     if(sessionNoLeak){S.noLeakWave=Math.max(S.noLeakWave||0,wave);}
     if(health>=sessionStartHp)S.fullHpWave=Math.max(S.fullHpWave||0,wave);
     S.bestWave=Math.max(S.bestWave,wave);persist();checkAchs();
   }
 
-  // Placement preview (during active wave too)
   drawPlacementPreview();
   drawToasts();
 
@@ -949,10 +1008,9 @@ function giveUp(){
 
 // ─── INPUT ────────────────────────────────────────
 canvas.addEventListener('click',ev=>{
-  if(!gameRunning||isDragging)return; // drag releases are handled by endDrag
+  if(!gameRunning||isDragging)return;
   const r=canvas.getBoundingClientRect();
   const x=(ev.clientX-r.left)*(canvas.width/r.width)/dpr,y=(ev.clientY-r.top)*(canvas.height/r.height)/dpr;
-  // Clicking an existing tower: upgrade (shift) or info
   for(const t of towers){
     if(Math.hypot(t.x-x,t.y-y)<18){
       if(ev.shiftKey||!selTower)t.upgrade();
@@ -960,7 +1018,6 @@ canvas.addEventListener('click',ev=>{
       return;
     }
   }
-  // Click-to-place (fallback for non-drag users)
   placeTower(x,y);
 });
 canvas.addEventListener('contextmenu',ev=>{ev.preventDefault();selTower=null;document.querySelectorAll('.tb').forEach(b=>b.classList.remove('sel'));});
@@ -974,5 +1031,51 @@ window.addEventListener('resize',()=>{initStars();if(document.getElementById('sc
 // ─── INIT ─────────────────────────────────────────
 window.addEventListener('load',()=>{resizeCanvas();updateMenuStats();showScreen('screen-menu');});
 </script>
+
+<!-- ===== GORDON'S GATE SCRIPT ===== -->
+<script>
+  (function() {
+    var SECRET_CODE = "G0RD0N";
+    var gate    = document.getElementById('gg-gate');
+    var input   = document.getElementById('gg-input');
+    var btn     = document.getElementById('gg-btn');
+    var box     = document.getElementById('gg-box');
+    var denied  = document.getElementById('gg-denied');
+    var granted = document.getElementById('gg-granted');
+    var active  = false, t;
+    function attempt() {
+      var val = input.value.toUpperCase().trim();
+      if (val === SECRET_CODE) {
+        denied.classList.remove('show');
+        granted.classList.add('show');
+        input.disabled = true;
+        btn.disabled = true;
+        setTimeout(function() {
+          gate.classList.add('gg-unlock');
+          setTimeout(function() { gate.style.display = 'none'; }, 900);
+        }, 600);
+      } else {
+        if (active) return;
+        active = true;
+        denied.classList.add('show');
+        box.classList.add('gg-shake');
+        gate.classList.add('gg-glitch');
+        input.value = '';
+        clearTimeout(t);
+        t = setTimeout(function() {
+          denied.classList.remove('show');
+          box.classList.remove('gg-shake');
+          gate.classList.remove('gg-glitch');
+          active = false;
+        }, 1200);
+      }
+    }
+    btn.addEventListener('click', attempt);
+    input.addEventListener('keydown', function(e) { if (e.key === 'Enter') attempt(); });
+    window.addEventListener('load', function() { setTimeout(function() { input.focus(); }, 150); });
+  })();
+</script>
+<!-- ===== END GORDON'S GATE SCRIPT ===== -->
+
 </body>
 </html>
